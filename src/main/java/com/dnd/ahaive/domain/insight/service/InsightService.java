@@ -31,6 +31,7 @@ import com.dnd.ahaive.domain.question.entity.QuestionStatus;
 import com.dnd.ahaive.domain.question.exception.AnswerNotFoundException;
 import com.dnd.ahaive.domain.question.repository.AnswerRepository;
 import com.dnd.ahaive.domain.question.repository.QuestionRepository;
+import com.dnd.ahaive.domain.question.service.QuestionService;
 import com.dnd.ahaive.domain.tag.dto.response.AiTagResponse;
 import com.dnd.ahaive.domain.tag.entity.InsightTag;
 import com.dnd.ahaive.domain.tag.entity.TagEntity;
@@ -69,8 +70,6 @@ public class InsightService {
   private final UserRepository userRepository;
   private final InsightRepository insightRepository;
   private final InsightPieceRepository insightPieceRepository;
-  private final QuestionRepository questionRepository;
-  //private final TagRepository tagRepository;
   private final TagEntityRepository tagEntityRepository;
   private final InsightTagRepository insightTagRepository;
   private final AnswerRepository answerRepository;
@@ -79,6 +78,10 @@ public class InsightService {
   private final ClaudeAiClient claudeAiClient;
   private final ObjectMapper objectMapper;
   private final InsightCandidateRepository insightCandidateRepository;
+
+  private final InsightValidator insightValidator;
+  private final InsightPieceService insightPieceService;
+  private final QuestionService questionService;
 
   @Transactional
   public InsightCreateResponse createInsight(InsightCreateRequest insightCreateRequest, String uuid) {
@@ -120,14 +123,13 @@ public class InsightService {
     insightRepository.save(insight);
 
     // 인사이트 조각 저장
-    insightPieceRepository.save(InsightPiece.of(insight, insightPieceContent, InsightGenerationType.INIT));
+    insightPieceService.saveInsightPieces(insight, insightPieceContent);
 
     // 태그 저장 및 인사이트-태그 연결
     saveInsightTags(insight, aiTagResponse.getTags(), user);
 
     // 질문 저장
-    questionRepository.saveAll(aiQuestionResponse.getQuestions().stream()
-        .map(q -> Question.of(insight, q, QuestionStatus.WAITING, 1L)).toList());
+    questionService.saveQuestions(aiQuestionResponse, insight);
 
     return InsightCreateResponse.from(insight);
   }
@@ -143,20 +145,6 @@ public class InsightService {
     return objectMapper.readValue(questionResponse, AiQuestionResponse.class);
   }
 
-
-  @Transactional(readOnly = true)
-  public Insight getValidatedInsight(long insightId, String username) {
-    Insight insight = insightRepository.findByIdWithUser(insightId)
-            .orElseThrow(() -> new EntityNotFoundException("해당 인사이트를 찾을 수 없습니다. insightId : " + insightId));
-
-    if (insight.isNotWrittenBy(username)) {
-        throw new InsightAccessDeniedException(
-                "해당 인사이트에 대한 접근 권한이 없습니다. insightId : " + insightId + ", username : " + username);
-    }
-
-    return insight;
-  }
-
   @Transactional
   public InsightDetailResponse getInsightDetail(Long id, String uuid) {
 
@@ -165,7 +153,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(id, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(id, uuid);
 
     // 인사이트 조회수 증가
     insight.increaseView();
@@ -186,7 +174,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     // 답변이 존재하는지 확인
     Answer answer = answerRepository.findById(answerToInsightRequest.getAnswerId())
@@ -262,7 +250,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     List<InsightPiece> insightPieces = insightPieceRepository.findAllByInsightIdOrderByCreatedAtAsc(insight.getId());
 
@@ -278,7 +266,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     InsightPiece insightPiece = InsightPiece.of(insight, pieceCreateRequest.getContent(), InsightGenerationType.SELF);
 
@@ -360,7 +348,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     try {
       // 첫 생각에 해당하는 인사이트 조각 조회
@@ -399,7 +387,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     insight.moveToTrash();
   }
@@ -411,7 +399,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     insight.restoreFromTrash();
   }
@@ -423,7 +411,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     insight.changeTitle(titleUpdateRequest.getTitle());
   }
