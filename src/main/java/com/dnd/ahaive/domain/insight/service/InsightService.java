@@ -24,6 +24,7 @@ import com.dnd.ahaive.domain.insight.repository.InsightCandidateRepository;
 import com.dnd.ahaive.domain.insight.repository.InsightPieceRepository;
 import com.dnd.ahaive.domain.insight.exception.InsightAccessDeniedException;
 import com.dnd.ahaive.domain.insight.repository.InsightRepository;
+import com.dnd.ahaive.domain.insight.service.dto.AiInsightResponse;
 import com.dnd.ahaive.domain.question.dto.response.AiQuestionResponse;
 import com.dnd.ahaive.domain.question.entity.Answer;
 import com.dnd.ahaive.domain.question.entity.Question;
@@ -79,6 +80,7 @@ public class InsightService {
   private final ObjectMapper objectMapper;
   private final InsightCandidateRepository insightCandidateRepository;
 
+  private final InsightAiService insightAiService;
   private final InsightValidator insightValidator;
   private final InsightPieceService insightPieceService;
   private final QuestionService questionService;
@@ -92,43 +94,24 @@ public class InsightService {
     String initThought = insightCreateRequest.getMemo();
 
     // AI 호출 병렬 처리
-    CompletableFuture<String> titleFuture = CompletableFuture.supplyAsync(() ->
-        claudeAiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_TITLE_PROMPT(initThought)));
+    AiInsightResponse aiInsightResponse = insightAiService.createInsightAndQuestion(initThought);
 
-    CompletableFuture<String> insightPieceFuture = CompletableFuture.supplyAsync(() ->
-        claudeAiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_INSIGHT_PROMPT(initThought)));
-
-    CompletableFuture<String> tagFuture = CompletableFuture.supplyAsync(() ->
-        claudeAiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_TAG_PROMPT(initThought)));
-
-    CompletableFuture<String> questionFuture = CompletableFuture.supplyAsync(() ->
-        claudeAiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_QUESTION_PROMPT(initThought)));
-
-    CompletableFuture.allOf(titleFuture, insightPieceFuture, tagFuture, questionFuture).join();
-
-    String title = titleFuture.join();
-    String insightPieceContent = insightPieceFuture.join();
-    AiTagResponse aiTagResponse;
-    AiQuestionResponse aiQuestionResponse;
-
-    try {
-      aiTagResponse = objectMapper.readValue(tagFuture.join(), AiTagResponse.class);
-      aiQuestionResponse = objectMapper.readValue(questionFuture.join(), AiQuestionResponse.class);
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
-
+    // 객체 저장
     // 인사이트 저장
+    String title = aiInsightResponse.title();
     Insight insight = Insight.from(initThought, title, user);
     insightRepository.save(insight);
 
     // 인사이트 조각 저장
+    String insightPieceContent = aiInsightResponse.insightPieceContent();
     insightPieceService.saveInsightPieces(insight, insightPieceContent);
 
     // 태그 저장 및 인사이트-태그 연결
+    AiTagResponse aiTagResponse = aiInsightResponse.aiTagResponse();
     saveInsightTags(insight, aiTagResponse.getTags(), user);
 
     // 질문 저장
+    AiQuestionResponse aiQuestionResponse = aiInsightResponse.aiQuestionResponse();
     questionService.saveQuestions(aiQuestionResponse, insight);
 
     return InsightCreateResponse.from(insight);
