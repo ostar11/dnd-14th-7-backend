@@ -19,7 +19,7 @@ public class ClaudeAiClient implements AiClient {
       String aiResponse = chatModel.call(prompt);
       return aiResponse.replaceAll("```json|```", "").trim();
     } catch (Exception e) {
-      log.error(e.getMessage(), e);
+      log.error("[ClaudeAiClient] AI 호출 실패: {}", e.getMessage(), e);
       throw new AiCallException(ErrorCode.INTERNAL_SERVER_ERROR);
     }
   }

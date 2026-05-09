@@ -4,7 +4,7 @@ import com.dnd.ahaive.domain.insight.entity.Insight;
 import com.dnd.ahaive.domain.insight.service.InsightValidator;
 import com.dnd.ahaive.domain.question.service.dto.AiQuestionsResponse;
 import com.dnd.ahaive.domain.question.service.dto.QuestionContentDto;
-import com.dnd.ahaive.infra.claude.ClaudeAiClient;
+import com.dnd.ahaive.infra.AiClient;
 import com.dnd.ahaive.infra.claude.prompt.ClaudeAiPrompt;
 import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,7 +20,7 @@ public class QuestionsFacadeService {
 
     private final InsightValidator insightValidator;
     private final QuestionService questionService;
-    private final ClaudeAiClient aiClient;
+    private final AiClient aiClient;
     private final ObjectMapper objectMapper;
 
     public void regenerateQuestions(long insightId, String uuid) {
