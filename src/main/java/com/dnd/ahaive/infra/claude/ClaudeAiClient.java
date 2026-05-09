@@ -1,6 +1,7 @@
 package com.dnd.ahaive.infra.claude;
 
 import com.dnd.ahaive.global.exception.ErrorCode;
+import com.dnd.ahaive.infra.AiClient;
 import com.dnd.ahaive.infra.claude.exception.AiCallException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +11,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class ClaudeAiClient {
+public class ClaudeAiClient implements AiClient {
   private final AnthropicChatModel chatModel;
 
   public String sendMessage(String prompt) {

@@ -22,18 +22,12 @@ import com.dnd.ahaive.domain.insight.entity.InsightSortType;
 import com.dnd.ahaive.domain.insight.exception.InsightNotFoundException;
 import com.dnd.ahaive.domain.insight.repository.InsightCandidateRepository;
 import com.dnd.ahaive.domain.insight.repository.InsightPieceRepository;
-import com.dnd.ahaive.domain.insight.exception.InsightAccessDeniedException;
 import com.dnd.ahaive.domain.insight.repository.InsightRepository;
 import com.dnd.ahaive.domain.insight.service.dto.AiInsightResponse;
 import com.dnd.ahaive.domain.question.dto.response.AiQuestionResponse;
 import com.dnd.ahaive.domain.question.entity.Answer;
-import com.dnd.ahaive.domain.question.entity.Question;
-import com.dnd.ahaive.domain.question.entity.QuestionStatus;
 import com.dnd.ahaive.domain.question.exception.AnswerNotFoundException;
 import com.dnd.ahaive.domain.question.repository.AnswerRepository;
-import com.dnd.ahaive.domain.question.repository.QuestionRepository;
-import com.dnd.ahaive.domain.question.service.QuestionService;
-import com.dnd.ahaive.domain.tag.dto.response.AiTagResponse;
 import com.dnd.ahaive.domain.tag.entity.InsightTag;
 import com.dnd.ahaive.domain.tag.entity.TagEntity;
 import com.dnd.ahaive.domain.tag.exception.TagNotFoundException;
@@ -51,10 +45,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import jakarta.persistence.EntityNotFoundException;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -81,9 +71,8 @@ public class InsightService {
   private final InsightCandidateRepository insightCandidateRepository;
 
   private final InsightAiService insightAiService;
+  private final InsightCreationService insightCreationService;
   private final InsightValidator insightValidator;
-  private final InsightPieceService insightPieceService;
-  private final QuestionService questionService;
 
   @Transactional
   public InsightCreateResponse createInsight(InsightCreateRequest insightCreateRequest, String uuid) {
@@ -94,27 +83,12 @@ public class InsightService {
     String initThought = insightCreateRequest.getMemo();
 
     // AI 호출 병렬 처리
-    AiInsightResponse aiInsightResponse = insightAiService.createInsightAndQuestion(initThought);
+    AiInsightResponse aiInsightResponse = insightAiService.generateInsightData(initThought);
 
     // 객체 저장
-    // 인사이트 저장
-    String title = aiInsightResponse.title();
-    Insight insight = Insight.from(initThought, title, user);
-    insightRepository.save(insight);
+    Long insightId = insightCreationService.save(initThought, user, aiInsightResponse);
 
-    // 인사이트 조각 저장
-    String insightPieceContent = aiInsightResponse.insightPieceContent();
-    insightPieceService.saveInsightPieces(insight, insightPieceContent);
-
-    // 태그 저장 및 인사이트-태그 연결
-    AiTagResponse aiTagResponse = aiInsightResponse.aiTagResponse();
-    saveInsightTags(insight, aiTagResponse.getTags(), user);
-
-    // 질문 저장
-    AiQuestionResponse aiQuestionResponse = aiInsightResponse.aiQuestionResponse();
-    questionService.saveQuestions(aiQuestionResponse, insight);
-
-    return InsightCreateResponse.from(insight);
+    return InsightCreateResponse.from(insightId);
   }
 
   /**
@@ -180,49 +154,6 @@ public class InsightService {
 
     // 답변 인사이트로 변환됨
     answer.convert();
-  }
-
-  /**
-   * 태그 이름들을 받아 저장하고 인사이트와 연결합니다.
-   * 같은 이름의 태그가 이미 있다면 재사용하고, 새로운 태그만 저장합니다.
-   * @param insight 연결할 인사이트 객체
-   * @param tagNames 태그 이름 리스트
-   * @param user 태그를 저장할 사용자 객체
-   */
-  @Transactional
-  public void saveInsightTags(Insight insight, List<String> tagNames, User user) {
-
-    // 기존 유저 태그 조회
-    Map<String, TagEntity> existingTagMap = tagEntityRepository.findAllByUserId(user.getId())
-        .stream()
-        .collect(Collectors.toMap(TagEntity::getTagName, tag -> tag));
-
-    List<String> newTagNames = tagNames.stream()
-        .filter(tagName -> !existingTagMap.containsKey(tagName))
-        .toList();
-
-    List<String> duplicatedTagNames = tagNames.stream()
-        .filter(existingTagMap::containsKey)
-        .toList();
-
-    // 새로운 태그 저장
-    List<TagEntity> newTagEntities = newTagNames.stream()
-        .map(tagName -> TagEntity.of(user, tagName))
-        .toList();
-    tagEntityRepository.saveAll(newTagEntities);
-
-    // 인사이트-태그 생성 (새로운 태그 + 기존 중복 태그)
-    List<InsightTag> insightTags = new ArrayList<>();
-
-    newTagEntities.stream()
-        .map(tagEntity -> InsightTag.of(tagEntity, insight))
-        .forEach(insightTags::add);
-
-    duplicatedTagNames.stream()
-        .map(tagName -> InsightTag.of(existingTagMap.get(tagName), insight))
-        .forEach(insightTags::add);
-
-    insightTagRepository.saveAll(insightTags);
   }
 
   @Transactional(readOnly = true)
