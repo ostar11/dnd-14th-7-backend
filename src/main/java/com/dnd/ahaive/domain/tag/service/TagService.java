@@ -1,7 +1,7 @@
 package com.dnd.ahaive.domain.tag.service;
 
 import com.dnd.ahaive.domain.insight.entity.Insight;
-import com.dnd.ahaive.domain.insight.service.InsightService;
+import com.dnd.ahaive.domain.insight.service.InsightValidator;
 import com.dnd.ahaive.domain.tag.controller.dto.TagRegisterRequestDto;
 import com.dnd.ahaive.domain.tag.entity.InsightTag;
 import com.dnd.ahaive.domain.tag.entity.TagEntity;
@@ -23,7 +23,7 @@ public class TagService {
     private final UserRepository userRepository;
     private final TagEntityRepository tagEntityRepository;
     private final InsightTagRepository insightTagRepository;
-    private final InsightService insightService;
+    private final InsightValidator insightValidator;
 
     @Transactional
     public void register(TagRegisterRequestDto tagRegisterRequestDto, String uuid) {
@@ -44,7 +44,7 @@ public class TagService {
 
     @Transactional
     public void removeTagFromInsight(long insightId, long tagId, String uuid) {
-        Insight insight = insightService.getValidatedInsight(insightId, uuid);
+        Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
         TagEntity tagEntity = tagEntityRepository.findById(tagId)
                 .orElseThrow(() -> new EntityNotFoundException("해당 태그가 존재하지 않습니다. tagId: " + tagId));
         User user = tagEntity.getUser();
@@ -58,7 +58,7 @@ public class TagService {
 
     @Transactional
     public long addTag(long insightId, long tagId, String uuid) {
-        Insight insight = insightService.getValidatedInsight(insightId, uuid);
+        Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
         User user = userRepository.findByUserUuid(uuid)
                 .orElseThrow(() -> new EntityNotFoundException("해당 회원이 존재하지 않습니다. uuid: " + uuid));
