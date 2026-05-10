@@ -16,8 +16,15 @@ logging:
 resilience4j:
   circuitbreaker:
     instances:
-      ai-client:
-        slidingWindowSize: 10
-        failureRateThreshold: 50
-        waitDurationInOpenState: 30s
-        permittedNumberOfCallsInHalfOpenState: 3
+      claude-client:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state:
+          seconds: 30
+        permitted-number-of-calls-in-half-open-state: 3
+      openai-client:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state:
+          seconds: 60
+        permitted-number-of-calls-in-half-open-state: 3

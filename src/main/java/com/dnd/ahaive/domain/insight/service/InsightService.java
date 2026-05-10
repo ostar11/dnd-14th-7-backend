@@ -38,7 +38,7 @@ import com.dnd.ahaive.domain.user.repository.UserRepository;
 import com.dnd.ahaive.global.exception.ErrorCode;
 import com.dnd.ahaive.global.exception.InvalidInputValueException;
 import com.dnd.ahaive.global.security.exception.UserNotFoundException;
-import com.dnd.ahaive.infra.claude.ClaudeAiClient;
+import com.dnd.ahaive.infra.AiClient;
 import com.dnd.ahaive.infra.claude.prompt.ClaudeAiPrompt;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -66,7 +66,7 @@ public class InsightService {
   private final AnswerRepository answerRepository;
   private final AnswerInsightPromotionRepository answerInsightPromotionRepository;
 
-  private final ClaudeAiClient claudeAiClient;
+  private final AiClient aiClient;
   private final ObjectMapper objectMapper;
   private final InsightCandidateRepository insightCandidateRepository;
 
@@ -98,7 +98,7 @@ public class InsightService {
    * @return AI가 생성한 질문들을 담은 AiQuestionResponse 객체
    */
   public AiQuestionResponse generateQuestions(String initThought) throws JsonProcessingException {
-    String questionResponse = claudeAiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_QUESTION_PROMPT(initThought));
+    String questionResponse = aiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_QUESTION_PROMPT(initThought));
     return objectMapper.readValue(questionResponse, AiQuestionResponse.class);
   }
 
@@ -143,7 +143,7 @@ public class InsightService {
     }
 
     // 답변-인사이트 변환 및 인사이트를 저장
-    String insightContent = claudeAiClient.sendMessage(ClaudeAiPrompt.ANSWER_TO_INSIGHT_PROMPT(answer.getContent()));
+    String insightContent = aiClient.sendMessage(ClaudeAiPrompt.ANSWER_TO_INSIGHT_PROMPT(answer.getContent()));
     InsightPiece insightPiece = InsightPiece.of(insight, insightContent,InsightGenerationType.ANSWER);
 
     insightPieceRepository.save(insightPiece);
@@ -273,7 +273,7 @@ public class InsightService {
       List<InsightCandidate> latestCandidates = insightCandidateRepository.findTop3ByInsightPieceIdOrderByCreatedAtDesc(insightPiece.getId());
 
       // 첫 생각을 기반으로 AI가 새로운 인사이트 후보 3개 생성
-      String aiResponse = claudeAiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_INSIGHT_CANDIDATE_PROMPT(insight.getInitThought(), latestCandidates));
+      String aiResponse = aiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_INSIGHT_CANDIDATE_PROMPT(insight.getInitThought(), latestCandidates));
       AiInsightCandidateResponse aiCandidateResponse = objectMapper.readValue(aiResponse, AiInsightCandidateResponse.class);
 
       // 해당 인사이트 조각에 대한 기존 후보들의 버전 중 최댓값 조회
