@@ -26,6 +26,11 @@ spring:
       chat:
         options:
           model: ${ANTHROPIC_AI_MODEL}
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: ${OPENAI_AI_MODEL}
 
   security:
     oauth2:
