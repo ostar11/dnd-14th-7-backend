@@ -3,10 +3,12 @@ package com.dnd.ahaive.domain.question.service;
 import com.dnd.ahaive.domain.insight.entity.Insight;
 import com.dnd.ahaive.domain.insight.repository.InsightRepository;
 import com.dnd.ahaive.domain.insight.service.InsightService;
+import com.dnd.ahaive.domain.insight.service.InsightValidator;
 import com.dnd.ahaive.domain.question.controller.dto.AnswerResponse;
 import com.dnd.ahaive.domain.question.controller.dto.TotalArchivedQuestionResponse;
 import com.dnd.ahaive.domain.question.controller.dto.QuestionResponse;
 import com.dnd.ahaive.domain.question.controller.dto.TotalQuestionDto;
+import com.dnd.ahaive.domain.question.dto.response.AiQuestionResponse;
 import com.dnd.ahaive.domain.question.entity.Answer;
 import com.dnd.ahaive.domain.question.entity.Question;
 import com.dnd.ahaive.domain.question.entity.QuestionStatus;
@@ -24,14 +26,14 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class QuestionService {
 
-    private final InsightService insightService;
+    private final InsightValidator insightValidator;
     private final QuestionRepository questionRepository;
     private final AnswerRepository answerRepository;
     private final InsightRepository insightRepository;
 
     @Transactional(readOnly = true)
     public TotalQuestionDto findQuestionAndAnswers(long insightId, String username) {
-        insightService.getValidatedInsight(insightId, username);
+        insightValidator.findInsightAndValidate(insightId, username);
 
         List<Question> waitingQuestions = questionRepository.findAllByInsightIdAndStatusOrderByCreatedAtDesc(insightId,
                 QuestionStatus.WAITING);
@@ -48,7 +50,7 @@ public class QuestionService {
 
     @Transactional(readOnly = true)
     public TotalArchivedQuestionResponse findPreviousQuestion(long insightId, String username) {
-        insightService.getValidatedInsight(insightId, username);
+        insightValidator.findInsightAndValidate(insightId, username);
 
         List<Question> archivedQuestions = questionRepository.findAllByInsightIdAndStatusOrderByCreatedAtDesc(insightId,
                 QuestionStatus.ARCHIVED);
@@ -60,7 +62,7 @@ public class QuestionService {
 
     @Transactional
     public void rollbackPreviousQuestion(long insightId, long questionId, String username) {
-        Insight insight = insightService.getValidatedInsight(insightId, username);
+        Insight insight = insightValidator.findInsightAndValidate(insightId, username);
 
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new EntityNotFoundException("해당 질문을 찾을 수 없습니다. questionsId : " + questionId));
@@ -105,5 +107,13 @@ public class QuestionService {
                 .collect(Collectors.toList());
 
         questionRepository.saveAll(newQuestions);
+    }
+
+    @Transactional
+    public void saveQuestions(AiQuestionResponse aiQuestionResponse, Insight insight) {
+        List<Question> questions = aiQuestionResponse.getQuestions().stream()
+                .map(questionContent -> Question.of(insight, questionContent, QuestionStatus.WAITING, 1L))
+                .toList();
+        questionRepository.saveAll(questions);
     }
 }

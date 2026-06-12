@@ -2,9 +2,25 @@ spring:
   application:
     name: ahaive
 
-#  profiles:
-#    active: dev
+  profiles:
+    active: dev
 
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %highlight([%-3level]) %cyan(%logger{5}) - %msg%n"
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      claude-client:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state:
+          seconds: 30
+        permitted-number-of-calls-in-half-open-state: 3
+      openai-client:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state:
+          seconds: 60
+        permitted-number-of-calls-in-half-open-state: 3

@@ -19,6 +19,11 @@ spring:
       chat:
         options:
           model: test-model
+    openai:
+      api-key: test-key
+      chat:
+        options:
+          model: test-model
 
   security:
     oauth2:

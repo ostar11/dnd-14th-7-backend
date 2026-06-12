@@ -16,4 +16,9 @@ public class InsightCreateResponse {
         .build();
   }
 
+  public static InsightCreateResponse from(Long insightId){
+    return InsightCreateResponse.builder()
+            .insightId(insightId)
+            .build();
+  }
 }

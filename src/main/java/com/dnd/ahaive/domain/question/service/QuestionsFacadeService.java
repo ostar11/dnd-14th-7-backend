@@ -1,10 +1,10 @@
 package com.dnd.ahaive.domain.question.service;
 
 import com.dnd.ahaive.domain.insight.entity.Insight;
-import com.dnd.ahaive.domain.insight.service.InsightService;
+import com.dnd.ahaive.domain.insight.service.InsightValidator;
 import com.dnd.ahaive.domain.question.service.dto.AiQuestionsResponse;
 import com.dnd.ahaive.domain.question.service.dto.QuestionContentDto;
-import com.dnd.ahaive.infra.claude.ClaudeAiClient;
+import com.dnd.ahaive.infra.AiClient;
 import com.dnd.ahaive.infra.claude.prompt.ClaudeAiPrompt;
 import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,13 +18,13 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class QuestionsFacadeService {
 
-    private final InsightService insightService;
+    private final InsightValidator insightValidator;
     private final QuestionService questionService;
-    private final ClaudeAiClient aiClient;
+    private final AiClient aiClient;
     private final ObjectMapper objectMapper;
 
     public void regenerateQuestions(long insightId, String uuid) {
-        Insight insight = insightService.getValidatedInsight(insightId, uuid);
+        Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
 //        현재 질문 조회
         List<QuestionContentDto> questionContents = questionService.getCurrentQuestions(insight.getId());

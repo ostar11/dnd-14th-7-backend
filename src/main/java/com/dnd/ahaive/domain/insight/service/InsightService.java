@@ -22,16 +22,12 @@ import com.dnd.ahaive.domain.insight.entity.InsightSortType;
 import com.dnd.ahaive.domain.insight.exception.InsightNotFoundException;
 import com.dnd.ahaive.domain.insight.repository.InsightCandidateRepository;
 import com.dnd.ahaive.domain.insight.repository.InsightPieceRepository;
-import com.dnd.ahaive.domain.insight.exception.InsightAccessDeniedException;
 import com.dnd.ahaive.domain.insight.repository.InsightRepository;
+import com.dnd.ahaive.domain.insight.service.dto.AiInsightResponse;
 import com.dnd.ahaive.domain.question.dto.response.AiQuestionResponse;
 import com.dnd.ahaive.domain.question.entity.Answer;
-import com.dnd.ahaive.domain.question.entity.Question;
-import com.dnd.ahaive.domain.question.entity.QuestionStatus;
 import com.dnd.ahaive.domain.question.exception.AnswerNotFoundException;
 import com.dnd.ahaive.domain.question.repository.AnswerRepository;
-import com.dnd.ahaive.domain.question.repository.QuestionRepository;
-import com.dnd.ahaive.domain.tag.dto.response.AiTagResponse;
 import com.dnd.ahaive.domain.tag.entity.InsightTag;
 import com.dnd.ahaive.domain.tag.entity.TagEntity;
 import com.dnd.ahaive.domain.tag.exception.TagNotFoundException;
@@ -42,17 +38,13 @@ import com.dnd.ahaive.domain.user.repository.UserRepository;
 import com.dnd.ahaive.global.exception.ErrorCode;
 import com.dnd.ahaive.global.exception.InvalidInputValueException;
 import com.dnd.ahaive.global.security.exception.UserNotFoundException;
-import com.dnd.ahaive.infra.claude.ClaudeAiClient;
+import com.dnd.ahaive.infra.AiClient;
 import com.dnd.ahaive.infra.claude.prompt.ClaudeAiPrompt;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import jakarta.persistence.EntityNotFoundException;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -69,16 +61,18 @@ public class InsightService {
   private final UserRepository userRepository;
   private final InsightRepository insightRepository;
   private final InsightPieceRepository insightPieceRepository;
-  private final QuestionRepository questionRepository;
-  //private final TagRepository tagRepository;
   private final TagEntityRepository tagEntityRepository;
   private final InsightTagRepository insightTagRepository;
   private final AnswerRepository answerRepository;
   private final AnswerInsightPromotionRepository answerInsightPromotionRepository;
 
-  private final ClaudeAiClient claudeAiClient;
+  private final AiClient aiClient;
   private final ObjectMapper objectMapper;
   private final InsightCandidateRepository insightCandidateRepository;
+
+  private final InsightAiService insightAiService;
+  private final InsightCreationService insightCreationService;
+  private final InsightValidator insightValidator;
 
   @Transactional
   public InsightCreateResponse createInsight(InsightCreateRequest insightCreateRequest, String uuid) {
@@ -89,47 +83,12 @@ public class InsightService {
     String initThought = insightCreateRequest.getMemo();
 
     // AI 호출 병렬 처리
-    CompletableFuture<String> titleFuture = CompletableFuture.supplyAsync(() ->
-        claudeAiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_TITLE_PROMPT(initThought)));
+    AiInsightResponse aiInsightResponse = insightAiService.generateInsightData(initThought);
 
-    CompletableFuture<String> insightPieceFuture = CompletableFuture.supplyAsync(() ->
-        claudeAiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_INSIGHT_PROMPT(initThought)));
+    // 객체 저장
+    Long insightId = insightCreationService.save(initThought, user, aiInsightResponse);
 
-    CompletableFuture<String> tagFuture = CompletableFuture.supplyAsync(() ->
-        claudeAiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_TAG_PROMPT(initThought)));
-
-    CompletableFuture<String> questionFuture = CompletableFuture.supplyAsync(() ->
-        claudeAiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_QUESTION_PROMPT(initThought)));
-
-    CompletableFuture.allOf(titleFuture, insightPieceFuture, tagFuture, questionFuture).join();
-
-    String title = titleFuture.join();
-    String insightPieceContent = insightPieceFuture.join();
-    AiTagResponse aiTagResponse;
-    AiQuestionResponse aiQuestionResponse;
-
-    try {
-      aiTagResponse = objectMapper.readValue(tagFuture.join(), AiTagResponse.class);
-      aiQuestionResponse = objectMapper.readValue(questionFuture.join(), AiQuestionResponse.class);
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
-
-    // 인사이트 저장
-    Insight insight = Insight.from(initThought, title, user);
-    insightRepository.save(insight);
-
-    // 인사이트 조각 저장
-    insightPieceRepository.save(InsightPiece.of(insight, insightPieceContent, InsightGenerationType.INIT));
-
-    // 태그 저장 및 인사이트-태그 연결
-    saveInsightTags(insight, aiTagResponse.getTags(), user);
-
-    // 질문 저장
-    questionRepository.saveAll(aiQuestionResponse.getQuestions().stream()
-        .map(q -> Question.of(insight, q, QuestionStatus.WAITING, 1L)).toList());
-
-    return InsightCreateResponse.from(insight);
+    return InsightCreateResponse.from(insightId);
   }
 
   /**
@@ -139,22 +98,8 @@ public class InsightService {
    * @return AI가 생성한 질문들을 담은 AiQuestionResponse 객체
    */
   public AiQuestionResponse generateQuestions(String initThought) throws JsonProcessingException {
-    String questionResponse = claudeAiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_QUESTION_PROMPT(initThought));
+    String questionResponse = aiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_QUESTION_PROMPT(initThought));
     return objectMapper.readValue(questionResponse, AiQuestionResponse.class);
-  }
-
-
-  @Transactional(readOnly = true)
-  public Insight getValidatedInsight(long insightId, String username) {
-    Insight insight = insightRepository.findByIdWithUser(insightId)
-            .orElseThrow(() -> new EntityNotFoundException("해당 인사이트를 찾을 수 없습니다. insightId : " + insightId));
-
-    if (insight.isNotWrittenBy(username)) {
-        throw new InsightAccessDeniedException(
-                "해당 인사이트에 대한 접근 권한이 없습니다. insightId : " + insightId + ", username : " + username);
-    }
-
-    return insight;
   }
 
   @Transactional
@@ -165,7 +110,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(id, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(id, uuid);
 
     // 인사이트 조회수 증가
     insight.increaseView();
@@ -186,7 +131,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     // 답변이 존재하는지 확인
     Answer answer = answerRepository.findById(answerToInsightRequest.getAnswerId())
@@ -198,7 +143,7 @@ public class InsightService {
     }
 
     // 답변-인사이트 변환 및 인사이트를 저장
-    String insightContent = claudeAiClient.sendMessage(ClaudeAiPrompt.ANSWER_TO_INSIGHT_PROMPT(answer.getContent()));
+    String insightContent = aiClient.sendMessage(ClaudeAiPrompt.ANSWER_TO_INSIGHT_PROMPT(answer.getContent()));
     InsightPiece insightPiece = InsightPiece.of(insight, insightContent,InsightGenerationType.ANSWER);
 
     insightPieceRepository.save(insightPiece);
@@ -211,49 +156,6 @@ public class InsightService {
     answer.convert();
   }
 
-  /**
-   * 태그 이름들을 받아 저장하고 인사이트와 연결합니다.
-   * 같은 이름의 태그가 이미 있다면 재사용하고, 새로운 태그만 저장합니다.
-   * @param insight 연결할 인사이트 객체
-   * @param tagNames 태그 이름 리스트
-   * @param user 태그를 저장할 사용자 객체
-   */
-  @Transactional
-  public void saveInsightTags(Insight insight, List<String> tagNames, User user) {
-
-    // 기존 유저 태그 조회
-    Map<String, TagEntity> existingTagMap = tagEntityRepository.findAllByUserId(user.getId())
-        .stream()
-        .collect(Collectors.toMap(TagEntity::getTagName, tag -> tag));
-
-    List<String> newTagNames = tagNames.stream()
-        .filter(tagName -> !existingTagMap.containsKey(tagName))
-        .toList();
-
-    List<String> duplicatedTagNames = tagNames.stream()
-        .filter(existingTagMap::containsKey)
-        .toList();
-
-    // 새로운 태그 저장
-    List<TagEntity> newTagEntities = newTagNames.stream()
-        .map(tagName -> TagEntity.of(user, tagName))
-        .toList();
-    tagEntityRepository.saveAll(newTagEntities);
-
-    // 인사이트-태그 생성 (새로운 태그 + 기존 중복 태그)
-    List<InsightTag> insightTags = new ArrayList<>();
-
-    newTagEntities.stream()
-        .map(tagEntity -> InsightTag.of(tagEntity, insight))
-        .forEach(insightTags::add);
-
-    duplicatedTagNames.stream()
-        .map(tagName -> InsightTag.of(existingTagMap.get(tagName), insight))
-        .forEach(insightTags::add);
-
-    insightTagRepository.saveAll(insightTags);
-  }
-
   @Transactional(readOnly = true)
   public InsightPieceResponse getInsightPieces(Long insightId, String uuid) {
 
@@ -262,7 +164,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     List<InsightPiece> insightPieces = insightPieceRepository.findAllByInsightIdOrderByCreatedAtAsc(insight.getId());
 
@@ -278,7 +180,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     InsightPiece insightPiece = InsightPiece.of(insight, pieceCreateRequest.getContent(), InsightGenerationType.SELF);
 
@@ -360,7 +262,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     try {
       // 첫 생각에 해당하는 인사이트 조각 조회
@@ -371,7 +273,7 @@ public class InsightService {
       List<InsightCandidate> latestCandidates = insightCandidateRepository.findTop3ByInsightPieceIdOrderByCreatedAtDesc(insightPiece.getId());
 
       // 첫 생각을 기반으로 AI가 새로운 인사이트 후보 3개 생성
-      String aiResponse = claudeAiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_INSIGHT_CANDIDATE_PROMPT(insight.getInitThought(), latestCandidates));
+      String aiResponse = aiClient.sendMessage(ClaudeAiPrompt.INIT_THOUGHT_TO_INSIGHT_CANDIDATE_PROMPT(insight.getInitThought(), latestCandidates));
       AiInsightCandidateResponse aiCandidateResponse = objectMapper.readValue(aiResponse, AiInsightCandidateResponse.class);
 
       // 해당 인사이트 조각에 대한 기존 후보들의 버전 중 최댓값 조회
@@ -399,7 +301,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     insight.moveToTrash();
   }
@@ -411,7 +313,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     insight.restoreFromTrash();
   }
@@ -423,7 +325,7 @@ public class InsightService {
     );
 
     // 인사이트 존재 여부 및 조회 권한 검증
-    Insight insight = getValidatedInsight(insightId, uuid);
+    Insight insight = insightValidator.findInsightAndValidate(insightId, uuid);
 
     insight.changeTitle(titleUpdateRequest.getTitle());
   }
