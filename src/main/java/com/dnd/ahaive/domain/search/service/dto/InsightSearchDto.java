@@ -1,5 +1,6 @@
 package com.dnd.ahaive.domain.search.service.dto;
 
+import com.dnd.ahaive.domain.insight.document.InsightDocument;
 import com.dnd.ahaive.domain.insight.entity.Insight;
 import java.time.LocalDateTime;
 
@@ -15,6 +16,15 @@ public record InsightSearchDto(
                 insight.getInitThought(),
                 content,
                 insight.getCreatedAt()
+        );
+    }
+
+    public static InsightSearchDto ofDocument(InsightDocument insightDocument) {
+        return new InsightSearchDto(
+                insightDocument.getTitle(),
+                insightDocument.getInitThought(),
+                insightDocument.getFirstInsightPiece(),
+                insightDocument.getCreatedAt()
         );
     }
 }

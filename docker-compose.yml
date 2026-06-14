@@ -13,6 +13,12 @@ services:
       - .env
     depends_on:
       - db
+      - elasticsearch
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 2g
 
   db:
     image: pgvector/pgvector:pg16
@@ -23,6 +29,28 @@ services:
       - "5432:5432"
     volumes:
       - pgvector-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 2g
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.2.3
+    container_name: es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false   # 개발용. 운영은 true 권장
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 2g
 
   nginx:
     image: nginx:latest
@@ -45,6 +73,8 @@ services:
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
 volumes:
   pgvector-data:
+  es_data:
 

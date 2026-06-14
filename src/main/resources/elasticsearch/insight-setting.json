@@ -1,0 +1,25 @@
+{
+  "analysis": {
+    "analyzer": {
+      "custom-analyzer": {
+        "type": "custom",
+        "tokenizer": "nori_tokenizer",
+        "filter": [
+          "lowercase",
+          "english_stemmer",
+          "english_stop"
+        ]
+      }
+    },
+    "filter": {
+      "english_stemmer": {
+        "type": "stemmer",
+        "language": "english"
+      },
+      "english_stop": {
+        "type": "stop",
+        "stopwords": "_english_"
+      }
+    }
+  }
+}
