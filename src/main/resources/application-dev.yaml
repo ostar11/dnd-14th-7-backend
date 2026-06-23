@@ -51,6 +51,10 @@ jwt:
   access-token-expiry: ${JWT_ACCESS_TOKEN_EXPIRY:3600000}
   refresh-token-expiry: ${JWT_REFRESH_TOKEN_EXPIRY:604800000}
 
+logging:
+  level:
+    org.hibernate.orm.jdbc.bind: TRACE
+
 springdoc:
   swagger-ui:
     url: /v3/api-docs

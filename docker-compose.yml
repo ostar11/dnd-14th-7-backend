@@ -21,7 +21,9 @@ services:
           memory: 2g
 
   db:
-    image: pgvector/pgvector:pg16
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
     container_name: ahaive-db
     env_file:
       - .env
@@ -49,7 +51,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1.00"
+          cpus: "2.00"
           memory: 2g
 
   nginx:
