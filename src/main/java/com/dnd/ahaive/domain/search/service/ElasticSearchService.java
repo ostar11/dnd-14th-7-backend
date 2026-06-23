@@ -1,5 +1,6 @@
 package com.dnd.ahaive.domain.search.service;
 
+import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
 import com.dnd.ahaive.domain.insight.document.InsightDocument;
 import com.dnd.ahaive.domain.search.controller.dto.SearchResultDto;
 import com.dnd.ahaive.domain.search.service.dto.InsightSearchDto;
@@ -33,7 +34,10 @@ public class ElasticSearchService implements SearchService {
                                 b.filter(m -> m.term(t -> t.field("userUuid").value(uuid)))
                                         .filter(m -> m.term(t -> t.field("trash").value(false)))
                                         .must(m -> m.multiMatch(
-                                                mm -> mm.fields("title", "initThought", "firstInsightPiece").query(searchTerm)
+                                                mm -> mm
+                                                        .fields("title", "initThought", "firstInsightPiece")
+                                                        .query(searchTerm)
+                                                        .type(TextQueryType.Phrase)
                                         ))
                         )
                 ).withPageable(PageRequest.of(0, 20))
@@ -46,6 +50,26 @@ public class ElasticSearchService implements SearchService {
     }
 
     private List<TagSearchDto> searchTags(String uuid, String searchTerm) {
+        NativeQuery query = NativeQuery.builder()
+                .withQuery(q -> q
+                        .bool(b -> b
+                                .filter(m -> m.term(t -> t.field("userUuid").value(uuid)))
+                                .must(m -> m.matchPhrase(mm -> mm.field("tagName").query(searchTerm)))
+                        )
+                )
+                .build();
+
+        return elasticsearchOperations.search(query, TagDocument.class)
+                .stream()
+                .map(hit -> new TagSearchDto(
+                        hit.getContent().getId(),
+                        hit.getContent().getTagName(),
+                        hit.getContent().getInsightCount()
+                ))
+                .toList();
+    }
+
+    private List<TagSearchDto> searchTagsUsingWildcard(String uuid, String searchTerm) {
         NativeQuery query = NativeQuery.builder()
                 .withQuery(q -> q
                         .bool(b -> b
