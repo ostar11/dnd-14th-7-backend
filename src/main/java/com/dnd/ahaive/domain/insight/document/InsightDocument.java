@@ -1,10 +1,13 @@
 package com.dnd.ahaive.domain.insight.document;
 
-import jakarta.persistence.Id;
+import com.dnd.ahaive.domain.insight.entity.Insight;
+import com.dnd.ahaive.domain.insight.entity.InsightPiece;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.DateFormat;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
@@ -42,5 +45,29 @@ public class InsightDocument {
     @Field(type = FieldType.Date, format = {DateFormat.date_hour_minute_second_millis, DateFormat.epoch_millis})
     private LocalDateTime updatedAt;
 
+    public static InsightDocument from(Insight insight, InsightPiece insightPiece) {
+        return InsightDocument.builder()
+                .id(insight.getId())
+                .userUuid(insight.getUser().getUserUuid())
+                .trash(insight.isTrash())
+                .title(insight.getTitle())
+                .initThought(insight.getInitThought())
+                .firstInsightPiece(insightPiece.getContent())
+                .createdAt(insight.getCreatedAt())
+                .updatedAt(insight.getUpdatedAt())
+                .build();
+    }
 
+    @Builder
+    protected InsightDocument(Long id, String userUuid, boolean trash, String title, String initThought,
+                           String firstInsightPiece, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.userUuid = userUuid;
+        this.trash = trash;
+        this.title = title;
+        this.initThought = initThought;
+        this.firstInsightPiece = firstInsightPiece;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 }

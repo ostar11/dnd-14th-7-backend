@@ -1,5 +1,6 @@
 package com.dnd.ahaive.domain.insight.repository;
 
+import com.dnd.ahaive.domain.insight.entity.Insight;
 import com.dnd.ahaive.domain.insight.entity.InsightGenerationType;
 import com.dnd.ahaive.domain.insight.entity.InsightPiece;
 import java.util.List;
@@ -19,5 +20,7 @@ public interface InsightPieceRepository extends JpaRepository<InsightPiece, Long
           "AND ip.createdType = :generationType")
   List<InsightPiece> findInitPiecesByInsightIds(@Param("insightIds") List<Long> insightIds,
                                                 @Param("generationType") InsightGenerationType generationType);
+
+  Optional<InsightPiece> findByInsightAndCreatedType(Insight insight, InsightGenerationType createdType);
 
 }

@@ -24,6 +24,7 @@ import com.dnd.ahaive.domain.insight.repository.InsightCandidateRepository;
 import com.dnd.ahaive.domain.insight.repository.InsightPieceRepository;
 import com.dnd.ahaive.domain.insight.repository.InsightRepository;
 import com.dnd.ahaive.domain.insight.service.dto.AiInsightResponse;
+import com.dnd.ahaive.domain.insight.service.dto.InsightDocumentRequest;
 import com.dnd.ahaive.domain.question.dto.response.AiQuestionResponse;
 import com.dnd.ahaive.domain.question.entity.Answer;
 import com.dnd.ahaive.domain.question.exception.AnswerNotFoundException;
@@ -47,6 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -74,6 +76,8 @@ public class InsightService {
   private final InsightCreationService insightCreationService;
   private final InsightValidator insightValidator;
 
+  private final ApplicationEventPublisher applicationEventPublisher;
+
   @Transactional
   public InsightCreateResponse createInsight(InsightCreateRequest insightCreateRequest, String uuid) {
     User user = userRepository.findByUserUuid(uuid).orElseThrow(
@@ -87,6 +91,8 @@ public class InsightService {
 
     // 객체 저장
     Long insightId = insightCreationService.save(initThought, user, aiInsightResponse);
+
+    applicationEventPublisher.publishEvent(new InsightDocumentRequest(insightId));
 
     return InsightCreateResponse.from(insightId);
   }
