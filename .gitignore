@@ -41,4 +41,6 @@ out/
 
 data/certbot/
 data/certbot/**
+data/test/
+data/test/**
 .DS_Store
