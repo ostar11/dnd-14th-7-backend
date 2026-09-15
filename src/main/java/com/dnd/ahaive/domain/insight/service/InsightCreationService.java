@@ -3,6 +3,7 @@ package com.dnd.ahaive.domain.insight.service;
 import com.dnd.ahaive.domain.insight.entity.Insight;
 import com.dnd.ahaive.domain.insight.repository.InsightRepository;
 import com.dnd.ahaive.domain.insight.service.dto.AiInsightResponse;
+import com.dnd.ahaive.domain.insight.service.dto.InsightDocumentRequest;
 import com.dnd.ahaive.domain.question.dto.response.AiQuestionResponse;
 import com.dnd.ahaive.domain.question.service.QuestionService;
 import com.dnd.ahaive.domain.tag.dto.response.AiTagResponse;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,8 @@ public class InsightCreationService {
     private final InsightRepository insightRepository;
     private final InsightTagRepository insightTagRepository;
     private final TagEntityRepository tagEntityRepository;
+
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Transactional
     public Long save(String initThought, User user, AiInsightResponse aiInsightResponse) {
@@ -47,6 +51,8 @@ public class InsightCreationService {
         // 질문 저장
         AiQuestionResponse aiQuestionResponse = aiInsightResponse.aiQuestionResponse();
         questionService.saveQuestions(aiQuestionResponse, insight);
+
+        applicationEventPublisher.publishEvent(new InsightDocumentRequest(insight.getId()));
 
         return insight.getId();
     }
