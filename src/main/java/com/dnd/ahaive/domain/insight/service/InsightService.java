@@ -19,6 +19,7 @@ import com.dnd.ahaive.domain.insight.entity.InsightCandidate;
 import com.dnd.ahaive.domain.insight.entity.InsightGenerationType;
 import com.dnd.ahaive.domain.insight.entity.InsightPiece;
 import com.dnd.ahaive.domain.insight.entity.InsightSortType;
+import com.dnd.ahaive.domain.insight.exception.InitPieceDeleteNotAllowedException;
 import com.dnd.ahaive.domain.insight.exception.InsightNotFoundException;
 import com.dnd.ahaive.domain.insight.repository.InsightCandidateRepository;
 import com.dnd.ahaive.domain.insight.repository.InsightPieceRepository;
@@ -209,6 +210,10 @@ public class InsightService {
 
     InsightPiece insightPiece = insightPieceRepository.findById(Long.parseLong(pieceId))
         .orElseThrow(() -> new InsightNotFoundException(ErrorCode.INSIGHT_NOT_FOUND));
+
+    if (insightPiece.getCreatedType() == InsightGenerationType.INIT) {
+      throw new InitPieceDeleteNotAllowedException(ErrorCode.INIT_PIECE_DELETE_NOT_ALLOWED);
+    }
 
     insightPieceRepository.delete(insightPiece);
   }

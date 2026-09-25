@@ -14,6 +14,7 @@ public enum ErrorCode {
     NOT_LIKE(400,"NOT_LIKE", "좋아요를 누르지 않았습니다."),
     NOT_BOOKMARK(400,"NOT_BOOKMARK", "북마크 되어있지 않은 게시글입니다."),
     ALREADY_CONVERTED_ANSWER(400, "ALREADY_CONVERTED_ANSWER", "이미 인사이트로 변환된 답변입니다."),
+    INIT_PIECE_DELETE_NOT_ALLOWED(400, "INIT_PIECE_DELETE_NOT_ALLOWED", "초기 생성된 인사이트 조각은 삭제할 수 없습니다."),
 
     // 400 Bad Request 검색 관련
     INVALID_SEARCH_KEYWORD_LENGTH(400, "INVALID_SEARCH_KEYWORD_LENGTH", "검색어는 2자 이상 입력해주세요."),
