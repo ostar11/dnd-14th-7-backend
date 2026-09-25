@@ -32,7 +32,7 @@ public class InsightOutboxRelayScheduler {
     @Transactional
     public void relay() {
         List<InsightOutbox> pendingInsightOutboxes = insightOutboxRepository.findByStatusAndCreatedAtBefore(
-                OutboxStatus.PENDING, LocalDateTime.now().minusSeconds(5), PageRequest.of(0, 100));
+                OutboxStatus.PENDING, LocalDateTime.now().minusSeconds(10), PageRequest.of(0, 100));
 
         if (pendingInsightOutboxes == null || pendingInsightOutboxes.isEmpty()) {
             return;
